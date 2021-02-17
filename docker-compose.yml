@@ -1,32 +1,37 @@
 version: "2"
 
 services:
-  mariadb:
-    image: mariadb:latest
-    ports:
-      - 3306:3306
-    environment:
-      MYSQL_ROOT_PASSWORD: admin
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: admin
-      MYSQL_DATABASE: metastore_db
-    volumes:
-      - ./mysql:/var/lib/mysql
-
   minio:
     image: minio/minio
+    hostname: minio
     environment:
-      - MINIO_ACCESS_KEY=accesskey
-      - MINIO_SECRET_KEY=secretkey
+      - MINIO_ACCESS_KEY=access_me
+      - MINIO_SECRET_KEY=i_am_a_secret
     volumes:
       - ./minio:/data
     ports:
       - 9000:9000
     command: server /data
 
-  hive-metastore:
-    image: hive-metastore:latest
-    ports:
-    - 9083:9083
+  createbuckets:
+    image: minio/mc
     depends_on:
-      - mariadb
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+        while ! /usr/bin/mc config host add minio http://minio:9000 access_me i_am_a_secret;
+            do
+              sleep 3;
+            done;
+        /usr/bin/mc mb minio/trino;
+      "
+
+  trino:
+    image: trinodb/trino
+    hostname: trino-host
+    ports:
+      - 8080:8080
+    volumes: 
+      - ./trino/etc:/etc/trino
+    depends_on: 
+      - hive-metastore
